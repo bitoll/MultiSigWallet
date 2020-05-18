@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="/statics/bootstrap.min.css" crossorigin="anonymous">
+    <link rel='stylesheet' href='/statics/fontawesome.css' crossorigin='anonymous'>
+    <title>MultiSig Wallet</title>
+  </head>
+  <body>
+
+<div class="container-fluid">
+
+<div class="d-flex justify-content-center my-3">
+	<div>MultiSig Wallet - 0xcd07aE91AB41CaC8776719FF5955a3Ec185eAEC8 (<span id="netName"></span>)</div>
+</div>
+
+<div class="d-flex justify-content-center my-3">
+  <div>Me = <span class="text-primary" id="myself"></span> | ETH = <span class="text-primary" id="balance"></span> | Owner = <span class="text-primary" id="owner"></span> </div>
+</div>
+
+<table class="table table-striped" id="pendingRecord">
+  <thead>
+    <tr>
+      <th scope="col">#</th>
+      <th scope="col">Token</th>
+      <th scope="col">To</th>
+      <th scope="col">Value</th>
+      <th scope="col">Confirm</th>
+    </tr>
+  </thead>
+  <tbody>
+  </tbody>
+</table>
+
+</div>
+
+  <script type="text/javascript" src="/statics/jquery.min.js" crossorigin="anonymous"></script>
+  <script type="text/javascript" src="/statics/popper.min.js" crossorigin="anonymous"></script>
+  <script type="text/javascript" src="/statics/bootstrap.min.js" crossorigin="anonymous"></script>
+  <script type="text/javascript" src="/statics/wallet.abi.js" crossorigin="anonymous"></script>
+	<script type="text/javascript">
+  // console.log(web3.version); 
+  window.addEventListener('load', function() {
+    if (!window.web3) {//用来判断你是否安装了metamask
+      window.alert('Please install MetaMask first.');//如果没有会去提示你先去安装
+      return;
+    }
+
+    window.ethereum.enable();
+
+    if (!web3.eth.coinbase) {//这个是判断你有没有登录，coinbase是你此时选择的账号
+      window.alert('Please activate MetaMask first.');
+      return;
+    }
+
+    // Checking if Web3 has been injected by the browser (Mist/MetaMask)
+    if (typeof web3 !== 'undefined') {
+      // console.log(web3);
+      // Use the browser's ethereum provider
+      var provider = web3.currentProvider
+      console.log(provider);
+      if (provider != 'undefined') {
+        var wallet = '0xcd07aE91AB41CaC8776719FF5955a3Ec185eAEC8';
+        getTxList(provider, wallet);
+      }
+
+    } else {
+      console.log('No web3? You should consider trying MetaMask!')
+    }
+  });
+
+  function Transaction(destination, value, data, executed) {
+    this.destination = destination;
+    this.value = value;
+    this.data = data;
+    this.executed = executed;
+  }
+
+  var tokenList = [
+    {token: 'HKMT', address: '0x303547e2f510c607bd3d264c6d7056db6363b1c7', digit: 6},
+  ];
+
+  function getTxList(provider, wallet) {    
+    var version = web3.version.api;
+    var defaultAccount = web3.eth.defaultAccount;
+    var network = web3.version.network;
+    var walletContract = web3.eth.contract(walletAbi);
+    var walletContractInstance = walletContract.at(wallet);
+
+    $('#myself').text(defaultAccount);
+    $('#netName').text(getNetworkName(network));
+    queryBalance(defaultAccount, $('#balance'));
+
+    // let walletContract = provider.contract(walletAbi, wallet);
+    walletContractInstance.transactionCount.call(function(error, result) {
+      console.log('all tx count', result.toString());
+    }); 
+
+    walletContractInstance.isOwner.call(defaultAccount, function(error, result) {
+      console.log('isOwner=', result);
+      $('#owner').text(result);
+    });
+
+    walletContractInstance.getTransactionCount.call(true, false, function(error, result) {
+      // console.log('get pending tx count', result.toString());
+      var max = result;
+      walletContractInstance.getTransactionIds.call(0, max, true, false, function(error, result) {
+        // console.log('get pending tx ids', result.toString());
+        result.forEach(function(item, index) {
+          // console.log('get pending tx id', item.toString());
+          loadTransaction(walletContractInstance, item, index);
+        }); 
+      });
+    });
+  }
+
+  function getNetworkName(networkId) {
+    if (networkId == 1) return "Main";
+    else if (networkId == 3) return "Ropsten";
+    else if (networkId == 42) return "Kovan";
+    else if (networkId == 4) return "Rinkeby";
+    else return "";
+  }
+
+  function queryBalance(address, elem) {
+    web3.eth.getBalance(address, (err, balance) => {
+      let number = Math.round(web3.fromWei(balance, 'ether') * 1000000) / 1000000;
+      // console.log('balance', balance.toString());
+      // console.log('number', number);
+      elem.text(number);
+      // const newElement = html `<div class="${css.result}">結果：${number} Ether</div>`
+      // morphdom(resultElement, newElement);
+    });
+  }
+
+  function loadTransaction(instance, item, index) {
+    instance.transactions.call(item, function(error, result) {
+      // console.log('tx detail', item.toString(), 'data=', result[0].toString());
+      var tx = new Transaction(result[0], result[1].toString(), result[2], result[3]);
+      var tokenName = '';
+      tokenList.forEach(function(tItem, tIndex) {
+        if (tItem.address == tx.destination) {
+          tokenName = tItem.token;
+        }
+      });
+
+      // parse tx.data return [addr,value]
+      var tokenData = parseData(tx.data);
+
+      $('#pendingRecord').append('<tr id="' + item.toString() + '"><th scope="row">' + item.toString() + '</th>' + 
+        '<td>' + tokenName + '</td><td>' + tokenData[0] + '</td><td>' + tokenData[1] + '</td><td>Confirm</td></tr>')
+
+      // console.log(item.toString(), 'token=', tokenName, 'tx dest=', tx.destination, 'value=', tx.value, 'data=', tx.data, 'executed=', tx.executed);
+    }); 
+  }
+
+  function parseData(data) {
+    // console.log('data=', data);
+    var func = data.substring(0, 10);
+    var dest = data.substring(34, 74);
+    var value = data.substring(74);
+    var iValue = parseInt(value, 16);
+    var fValue = iValue / 1000000;
+    console.log('func=', func, 'dest=', dest, 'value=', fValue);
+    if (func != '0xa9059cbb') {
+      // erc20.transfer
+      // console.log('erc20.transfer');
+      return ['0x0', 0];
+    }
+
+    return ['0x' + dest, fValue];
+  }
+  
+
+	</script>
+  </body>
+</html>
