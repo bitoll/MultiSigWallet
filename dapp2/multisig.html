@@ -19,6 +19,48 @@
   <div>Me = <span class="text-primary" id="myself"></span> | ETH = <span class="text-primary" id="balance"></span> | Owner = <span class="text-primary" id="owner"></span> </div>
 </div>
 
+<div class="card">
+  <div class="card-header text-white" style="background-color: #050505;">
+    Submit Transaction
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <!-- <div class="input-group mb-3 col-sm-2">
+        <div class="input-group-prepend">
+          <label class="input-group-text" for="inputGroupSelect01">Options</label>
+        </div>
+        <select class="custom-select" id="inputGroupSelect01">
+          <option selected>Choose...</option>
+          <option value="1">One</option>
+          <option value="2">Two</option>
+          <option value="3">Three</option>
+        </select>
+      </div> -->
+  
+      <div class="input-group mb-3 col-sm-4">
+        <div class="input-group-prepend">
+          <span class="input-group-text">Amount</span>
+        </div>
+        <input type="text" class="form-control" id="transferAmount" aria-describedby="basic-addon3">
+      </div>
+  
+      <div class="input-group mb-3 col-sm-6">
+        <div class="input-group-prepend">
+          <span class="input-group-text">To</span>
+        </div>
+        <input type="text" class="form-control" id="targetAddress" aria-describedby="basic-addon3">
+      </div>
+    </div>
+    <button type="button" onclick="submitTransaction()" class="btn btn-primary">Submit</button>
+  </div>
+</div>
+
+
+
+
+<div class="d-flex justify-content-center my-3">
+  <h5>Pending Transactions</h5>
+</div>
 <table class="table table-striped" id="pendingRecord">
   <thead>
     <tr>
@@ -33,8 +75,6 @@
   </tbody>
 </table>
 
-<button type="button" onclick="submitTransaction()" class="btn btn-success">Confirm</button>
-
 </div>
 
   <script type="text/javascript" src="/statics/jquery.min.js" crossorigin="anonymous"></script>
@@ -48,6 +88,7 @@
   
   var tokenList = [
     {token: 'HKMT', address: ADDRESS_HKMT, digit: 6},
+    {token: 'N/A', address: 'N/A', digit: 6},
   ];
   
   var version = web3.version.api;
@@ -100,6 +141,8 @@
     walletContract = web3.eth.contract(walletAbi);
     walletContractInstance = walletContract.at(wallet);
   }
+
+  //*******  Dapp Code *******//
 
   function getTxList() {
     $('#myself').text(defaultAccount);
@@ -179,10 +222,10 @@
     });
   }
 
-  function submitTransaction(/*targetAddress, tokenAddress, amount*/) {
-    var targetAddress = "0xfefa30911392e9c99c463a9929549790a56cc1c7";
+  function submitTransaction() {
+    var targetAddress = $('#targetAddress').val();
     var tokenAddress = ADDRESS_HKMT;
-    var amount = "1.00000";
+    var amount = $('#transferAmount').val();;
 
     var data = marshalData(targetAddress, amount);
     if (data) {
@@ -192,8 +235,10 @@
     }
   }
 
+  //*******  End of Dapp Code *******//
+
   function parseData(data) {
-    console.log('data=', data);
+    // console.log('data=', data);
     var func = data.substring(0, 10);
     var dest = data.substring(34, 74);
     var value = data.substring(74);
