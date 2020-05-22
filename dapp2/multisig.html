@@ -33,13 +33,29 @@
   </tbody>
 </table>
 
+<button type="button" onclick="submitTransaction()" class="btn btn-success">Confirm</button>
+
 </div>
 
   <script type="text/javascript" src="/statics/jquery.min.js" crossorigin="anonymous"></script>
   <script type="text/javascript" src="/statics/popper.min.js" crossorigin="anonymous"></script>
   <script type="text/javascript" src="/statics/bootstrap.min.js" crossorigin="anonymous"></script>
   <script type="text/javascript" src="/statics/wallet.abi.js" crossorigin="anonymous"></script>
-	<script type="text/javascript">
+  <script type="text/javascript">
+  
+  const ADDRESS_HKMT = "0x303547E2f510C607BD3D264C6d7056dB6363b1c7";
+  const ADDRESS_MULTISIG_WALLET = "0x068e606ED3ec366e3B49ca1dB7911452329D2533"; //0xcd07aE91AB41CaC8776719FF5955a3Ec185eAEC8
+  
+  var tokenList = [
+    {token: 'HKMT', address: ADDRESS_HKMT, digit: 6},
+  ];
+  
+  var version = web3.version.api;
+  var defaultAccount = web3.eth.defaultAccount;
+  var network = web3.version.network;
+  var walletContract = web3.eth.contract(walletAbi);
+  var walletContractInstance;
+
   // console.log(web3.version); 
   window.addEventListener('load', function() {
     if (!window.web3) {//用来判断你是否安装了metamask
@@ -61,8 +77,8 @@
       var provider = web3.currentProvider
       console.log(provider);
       if (provider != 'undefined') {
-        var wallet = '0xcd07aE91AB41CaC8776719FF5955a3Ec185eAEC8';
-        getTxList(provider, wallet);
+        initWalletContract(provider, ADDRESS_MULTISIG_WALLET);
+        getTxList();
       }
 
     } else {
@@ -77,17 +93,15 @@
     this.executed = executed;
   }
 
-  var tokenList = [
-    {token: 'HKMT', address: '0x303547e2f510c607bd3d264c6d7056db6363b1c7', digit: 6},
-  ];
+  function initWalletContract (provider, wallet) {
+    version = web3.version.api;
+    defaultAccount = web3.eth.defaultAccount;
+    network = web3.version.network;
+    walletContract = web3.eth.contract(walletAbi);
+    walletContractInstance = walletContract.at(wallet);
+  }
 
-  function getTxList(provider, wallet) {    
-    var version = web3.version.api;
-    var defaultAccount = web3.eth.defaultAccount;
-    var network = web3.version.network;
-    var walletContract = web3.eth.contract(walletAbi);
-    var walletContractInstance = walletContract.at(wallet);
-
+  function getTxList() {
     $('#myself').text(defaultAccount);
     $('#netName').text(getNetworkName(network));
     queryBalance(defaultAccount, $('#balance'));
@@ -112,15 +126,7 @@
           loadTransaction(walletContractInstance, item, index);
         }); 
       });
-    });
-  }
-
-  function getNetworkName(networkId) {
-    if (networkId == 1) return "Main";
-    else if (networkId == 3) return "Ropsten";
-    else if (networkId == 42) return "Kovan";
-    else if (networkId == 4) return "Rinkeby";
-    else return "";
+    }); 
   }
 
   function queryBalance(address, elem) {
@@ -140,7 +146,7 @@
       var tx = new Transaction(result[0], result[1].toString(), result[2], result[3]);
       var tokenName = '';
       tokenList.forEach(function(tItem, tIndex) {
-        if (tItem.address == tx.destination) {
+        if (tItem.address.toLowerCase() == tx.destination.toLowerCase()) {
           tokenName = tItem.token;
         }
       });
@@ -149,14 +155,45 @@
       var tokenData = parseData(tx.data);
 
       $('#pendingRecord').append('<tr id="' + item.toString() + '"><th scope="row">' + item.toString() + '</th>' + 
-        '<td>' + tokenName + '</td><td>' + tokenData[0] + '</td><td>' + tokenData[1] + '</td><td>Confirm</td></tr>')
+        '<td>' + tokenName + '</td><td>' + tokenData[0] + '</td><td>' + tokenData[1] + 
+          '</td><td><button type="button" onclick="confirmTransaction(\'' + item.toString() + '\')" class="btn btn-success">Confirm</button></td></tr>')
 
       // console.log(item.toString(), 'token=', tokenName, 'tx dest=', tx.destination, 'value=', tx.value, 'data=', tx.data, 'executed=', tx.executed);
     }); 
   }
 
+  function confirmTransaction(transactionId) {
+    // Check if current address is contract owner
+    walletContractInstance.isOwner.call(defaultAccount, function(error, isOwner) {
+      if (error != null) {
+        console.log('Call to isContractOwner() failed: ', error);
+      }
+      // Only contract owner will proceed to transaction
+      if (isOwner) {
+        walletContractInstance.confirmTransaction.sendTransaction(transactionId, function(error, transactionHash){
+          console.log(error, transactionHash);
+        });
+      } else {
+        console.log('confirmTransaction: ', 'you are not contract owner!');
+      }
+    });
+  }
+
+  function submitTransaction(/*targetAddress, tokenAddress, amount*/) {
+    var targetAddress = "0xfefa30911392e9c99c463a9929549790a56cc1c7";
+    var tokenAddress = ADDRESS_HKMT;
+    var amount = "1.00000";
+
+    var data = marshalData(targetAddress, amount);
+    if (data) {
+      walletContractInstance.submitTransaction.sendTransaction(tokenAddress, 0, data, function(error, transactionId) {
+        console.log(error, transactionId);
+      });
+    }
+  }
+
   function parseData(data) {
-    // console.log('data=', data);
+    console.log('data=', data);
     var func = data.substring(0, 10);
     var dest = data.substring(34, 74);
     var value = data.substring(74);
@@ -171,8 +208,52 @@
 
     return ['0x' + dest, fValue];
   }
-  
 
+  function marshalData(targetAddress, transferAmout) {
+    if (!isLessThanSixDecimalPlaces(transferAmout)) {
+      return false;
+    }
+
+    var method = "0xa9059cbb";
+    var address = "000000000000000000000000" + targetAddress.substring(2);
+    var amountInHex = (transferAmout * 1000000).toString(16);
+    
+    while (amountInHex.length < 64) {
+      amountInHex = '0' + amountInHex;
+    }
+
+    return method.concat(address, amountInHex);
+  }
+
+  function isLessThanSixDecimalPlaces(value) {
+    if(Math.floor(value) === value) {
+      return true;
+    }
+
+    var dp = value.toString().split(".")[1].length;
+    if (dp <= 6) {
+      return true;
+    }
+
+    return false; 
+  }
+
+  function getNetworkName(networkId) {
+    if (networkId == 1) return "Main";
+    else if (networkId == 3) return "Ropsten";
+    else if (networkId == 42) return "Kovan";
+    else if (networkId == 4) return "Rinkeby";
+    else return "";
+  }
+
+  //0xa9059cbb
+  //00000000000000000000000018e41a7e3b5520cc65ab589631dc7f59d792d3bf
+  //00000000000000000000000000000000000000000000000000000000aa9e9d88
+
+  //0xa9059cbb
+  //000000000000000000000000fefa30911392e9c99c463a9929549790a56cc1c7
+  //00000000000000000000000000000000000000000000000000000000000f4240
+  
 	</script>
   </body>
 </html>
