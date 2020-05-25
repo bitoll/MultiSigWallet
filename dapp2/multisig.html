@@ -25,17 +25,12 @@
   </div>
   <div class="card-body">
     <div class="row">
-      <!-- <div class="input-group mb-3 col-sm-2">
+      <div class="input-group mb-3 col-sm-2">
         <div class="input-group-prepend">
-          <label class="input-group-text" for="inputGroupSelect01">Options</label>
+          <label class="input-group-text" for="inputGroupSelect01">Token</label>
         </div>
-        <select class="custom-select" id="inputGroupSelect01">
-          <option selected>Choose...</option>
-          <option value="1">One</option>
-          <option value="2">Two</option>
-          <option value="3">Three</option>
-        </select>
-      </div> -->
+        <select class="custom-select" id="input_token"></select>
+      </div>
   
       <div class="input-group mb-3 col-sm-4">
         <div class="input-group-prepend">
@@ -83,14 +78,14 @@
   <script type="text/javascript" src="/statics/wallet.abi.js" crossorigin="anonymous"></script>
   <script type="text/javascript">
   
-  const ADDRESS_HKMT = "0x303547E2f510C607BD3D264C6d7056dB6363b1c7";
   const ADDRESS_MULTISIG_WALLET = "0x068e606ED3ec366e3B49ca1dB7911452329D2533"; //0xcd07aE91AB41CaC8776719FF5955a3Ec185eAEC8
   
-  var tokenList = [
-    {token: 'HKMT', address: ADDRESS_HKMT, digit: 6},
-    {token: 'N/A', address: 'N/A', digit: 6},
+  const tokenList = [
+    {token: 'HKMT', address: '0x303547E2f510C607BD3D264C6d7056dB6363b1c7', digit: 6},
+    {token: 'TEST', address: '0xabb9835819E028EFD9da0bC3BAC2ccB7CEa22134', digit: 6},
   ];
   
+  var selectedToken = 0;
   var version = web3.version.api;
   var defaultAccount = web3.eth.defaultAccount;
   var network = web3.version.network;
@@ -125,7 +120,16 @@
     } else {
       console.log('No web3? You should consider trying MetaMask!')
     }
+    buildDropDown();
   });
+
+  function buildDropDown() {
+    var dropdown =  $("#input_token")[0];
+    $.each(tokenList, function(i, item) {
+        var option = new Option(item.token, i);
+        dropdown.add(option);
+    });
+  }
 
   function Transaction(destination, value, data, executed) {
     this.destination = destination;
@@ -224,9 +228,10 @@
 
   function submitTransaction() {
     var targetAddress = $('#targetAddress').val();
-    var tokenAddress = ADDRESS_HKMT;
-    var amount = $('#transferAmount').val();;
+    var tokenAddress = tokenList[$('#input_token').val()].address;
+    var amount = $('#transferAmount').val();
 
+    console.log(tokenAddress);
     var data = marshalData(targetAddress, amount);
     if (data) {
       walletContractInstance.submitTransaction.sendTransaction(tokenAddress, 0, data, function(error, transactionId) {
@@ -290,15 +295,6 @@
     else if (networkId == 4) return "Rinkeby";
     else return "";
   }
-
-  //0xa9059cbb
-  //00000000000000000000000018e41a7e3b5520cc65ab589631dc7f59d792d3bf
-  //00000000000000000000000000000000000000000000000000000000aa9e9d88
-
-  //0xa9059cbb
-  //000000000000000000000000fefa30911392e9c99c463a9929549790a56cc1c7
-  //00000000000000000000000000000000000000000000000000000000000f4240
-  
 	</script>
   </body>
 </html>
