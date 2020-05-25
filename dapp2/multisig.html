@@ -24,29 +24,27 @@
     Submit Transaction
   </div>
   <div class="card-body">
-    <div class="row">
-      <div class="input-group mb-3 col-sm-2">
-        <div class="input-group-prepend">
-          <label class="input-group-text" for="inputGroupSelect01">Token</label>
+    <div class="form-group">
+      <div class="row">
+        <div class="form-group mb-3 col-sm-2">
+          <label>Token</label>
+          <select class="custom-select" id="input_token"></select>
         </div>
-        <select class="custom-select" id="input_token"></select>
-      </div>
-  
-      <div class="input-group mb-3 col-sm-4">
-        <div class="input-group-prepend">
-          <span class="input-group-text">Amount</span>
+
+        <div class="form-group mb-3 col-sm-4">
+          <label>Amount</label>
+          <input type="text" class="form-control" id="transferAmount" aria-describedby="basic-addon3">
+          <small class="form-text text-danger" id="amount-error" style="visibility: hidden;">amount must be a number with no more than 6 decimal places</small>
         </div>
-        <input type="text" class="form-control" id="transferAmount" aria-describedby="basic-addon3">
-      </div>
-  
-      <div class="input-group mb-3 col-sm-6">
-        <div class="input-group-prepend">
-          <span class="input-group-text">To</span>
+
+        <div class="form-group mb-3 col-sm-6">
+          <label>To</label>
+          <input type="text" class="form-control" id="targetAddress" aria-describedby="basic-addon3">
+          <small class="form-text text-danger" id="address-error" style="visibility: hidden;">invalid address</small>
         </div>
-        <input type="text" class="form-control" id="targetAddress" aria-describedby="basic-addon3">
       </div>
+      <button type="button" onclick="submitTransaction()" class="btn btn-primary">Submit</button>
     </div>
-    <button type="button" onclick="submitTransaction()" class="btn btn-primary">Submit</button>
   </div>
 </div>
 
@@ -91,6 +89,9 @@
   var network = web3.version.network;
   var walletContract = web3.eth.contract(walletAbi);
   var walletContractInstance;
+
+  var isInputAmountValid;
+  var isInputAddressValid;
 
   // console.log(web3.version); 
   window.addEventListener('load', function() {
@@ -231,8 +232,8 @@
     var tokenAddress = tokenList[$('#input_token').val()].address;
     var amount = $('#transferAmount').val();
 
-    console.log(tokenAddress);
     var data = marshalData(targetAddress, amount);
+    showInputError();
     if (data) {
       walletContractInstance.submitTransaction.sendTransaction(tokenAddress, 0, data, function(error, transactionId) {
         console.log(error, transactionId);
@@ -260,9 +261,18 @@
   }
 
   function marshalData(targetAddress, transferAmout) {
-    if (!isLessThanSixDecimalPlaces(transferAmout)) {
+    if (!isNumberAndLessThanSixDecimalPlaces(transferAmout)) {
+      isInputAmountValid = false;
       return false;
     }
+    isInputAmountValid = true;
+
+
+    if (!isAddressValid(targetAddress)) {
+      isInputAddressValid = false;
+      return false;
+    }
+    isInputAddressValid = true;
 
     var method = "0xa9059cbb";
     var address = "000000000000000000000000" + targetAddress.substring(2);
@@ -275,17 +285,41 @@
     return method.concat(address, amountInHex);
   }
 
-  function isLessThanSixDecimalPlaces(value) {
-    if(Math.floor(value) === value) {
-      return true;
-    }
+  function isAddressValid(address) {
+    //0x4685c258d4774725e412Ae06b89f88D1879D0065
+    if (address.length != 42) return false;
+    if (address.substring(0, 2).toLowerCase() !== "0x") return false;
 
-    var dp = value.toString().split(".")[1].length;
-    if (dp <= 6) {
+    return true;
+  }
+
+  function isNumberAndLessThanSixDecimalPlaces(value) {
+    if (!value)
+      return false;
+
+    if (isInt(value))
       return true;
+    
+    if (isFloat(value)) {
+      var dp = value.toString().split(".")[1].length;
+      console.log(dp);
+      if (dp <= 6) return true;
     }
 
     return false; 
+  }
+
+  function isInt(n){
+    let value = n;
+    if (value.toString().split(".")[1]) return false;
+
+    console.log(n);
+
+    return Number(n) == n && n % 1 === 0;
+  }
+
+  function isFloat(n){
+      return Number(n) == n && n % 1 !== 0;
   }
 
   function getNetworkName(networkId) {
@@ -295,6 +329,30 @@
     else if (networkId == 4) return "Rinkeby";
     else return "";
   }
+
+  function showInputError() {
+    var elementAmount = document.getElementById("transferAmount");
+    var elementAmountError = document.getElementById("amount-error");
+    var elementAddress = document.getElementById("targetAddress");
+    var elementAddressError = document.getElementById("address-error");
+
+    if (isInputAmountValid) {
+      elementAmount.classList.remove("is-invalid");
+      elementAmountError.style.visibility = "hidden";
+    } else {
+      elementAmount.classList.add("is-invalid");
+      elementAmountError.style.visibility = "visible";
+    }
+
+    if (isInputAddressValid) {
+      elementAddress.classList.remove("is-invalid");
+      elementAddressError.style.visibility = "hidden";
+    } else {
+      elementAddress.classList.add("is-invalid");
+      elementAddressError.style.visibility = "visible";
+    }
+
+  }  
 	</script>
   </body>
 </html>
