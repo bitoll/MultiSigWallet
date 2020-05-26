@@ -12,7 +12,7 @@
 <div class="container-fluid">
 
 <div class="d-flex justify-content-center my-3">
-	<div>MultiSig Wallet - 0xcd07aE91AB41CaC8776719FF5955a3Ec185eAEC8 (<span id="netName"></span>)</div>
+	<div>MultiSig Wallet - <span id="multiSig-address"></span> (<span id="netName"></span>)</div>
 </div>
 
 <div class="d-flex justify-content-center my-3">
@@ -21,14 +21,27 @@
 
 <div class="card">
   <div class="card-header text-white" style="background-color: #050505;">
-    Submit Transaction
+    <div class="row">
+      <div class="col-sm-3">
+        Submit Transaction
+      </div>
+      <div class="col-sm-9">
+        <span class="text-danger">
+          <i>
+            Available Balance: 
+            <span id="available-balance"></span>
+            (<span id="selected-token-symbol"></span>)
+          </i>
+        </span>
+      </div>
+    </div>
   </div>
   <div class="card-body">
     <div class="form-group">
       <div class="row">
         <div class="form-group mb-3 col-sm-2">
           <label>Token</label>
-          <select class="custom-select" id="input_token"></select>
+          <select class="custom-select" id="input-token" onchange="updateSelectedToken()"></select>
         </div>
 
         <div class="form-group mb-3 col-sm-4">
@@ -122,14 +135,17 @@
       console.log('No web3? You should consider trying MetaMask!')
     }
     buildDropDown();
+    updateSelectedToken();
+    $('#multiSig-address').text(ADDRESS_MULTISIG_WALLET);
   });
 
   function buildDropDown() {
-    var dropdown =  $("#input_token")[0];
+    var dropdown =  $("#input-token")[0];
     $.each(tokenList, function(i, item) {
         var option = new Option(item.token, i);
         dropdown.add(option);
     });
+    $("#input-token").val("0"); //default selected value
   }
 
   function Transaction(destination, value, data, executed) {
@@ -229,7 +245,7 @@
 
   function submitTransaction() {
     var targetAddress = $('#targetAddress').val();
-    var tokenAddress = tokenList[$('#input_token').val()].address;
+    var tokenAddress = tokenList[selectedToken].address;
     var amount = $('#transferAmount').val();
 
     var data = marshalData(targetAddress, amount);
@@ -239,6 +255,39 @@
         console.log(error, transactionId);
       });
     }
+  }
+
+  function getTokenBalance() {
+    let minABI = [
+      {
+        "constant":true,
+        "inputs":[{"name":"_owner","type":"address"}],
+        "name":"balanceOf",
+        "outputs":[{"name":"balance","type":"uint256"}],
+        "type":"function"
+      },
+      {
+        "constant":true,
+        "inputs":[],
+        "name":"decimals",
+        "outputs":[{"name":"","type":"uint8"}],
+        "type":"function"
+      }
+    ];
+
+    let selectedTokenAddress = tokenList[selectedToken].address;
+    let contract = web3.eth.contract(minABI).at(selectedTokenAddress);
+
+    // Call balanceOf function
+    contract.balanceOf(ADDRESS_MULTISIG_WALLET, (error, balance) => {
+      // Get decimals
+      contract.decimals((error, decimals) => {
+        // calculate a balance
+        balance = balance.div(10**decimals);
+        // console.log(balance.toString());
+        $('#available-balance').text(balance);
+      });
+    });
   }
 
   //*******  End of Dapp Code *******//
@@ -260,8 +309,15 @@
     return ['0x' + dest, fValue];
   }
 
+  function updateSelectedToken() {
+    selectedToken = $('#input-token').val();
+    $('#selected-token-symbol').text(tokenList[selectedToken].token)
+    $('#available-balance').text("......");
+    getTokenBalance();
+  }
+
   function marshalData(targetAddress, transferAmout) {
-    if (!isNumberAndLessThanSixDecimalPlaces(transferAmout)) {
+    if (!isNumericAndLessThanSixDecimalPlaces(transferAmout)) {
       isInputAmountValid = false;
       return false;
     }
@@ -293,33 +349,29 @@
     return true;
   }
 
-  function isNumberAndLessThanSixDecimalPlaces(value) {
+  function isNumericAndLessThanSixDecimalPlaces(value) {
     if (!value)
       return false;
-
-    if (isInt(value))
-      return true;
     
     if (isFloat(value)) {
-      var dp = value.toString().split(".")[1].length;
-      console.log(dp);
-      if (dp <= 6) return true;
+      var test = value.toString().split(".")[1];
+      if (!isNaN(test)) {
+        if (test.length > 6) return false;
+      }
+      return true;
     }
 
     return false; 
   }
 
   function isInt(n){
-    let value = n;
-    if (value.toString().split(".")[1]) return false;
-
-    console.log(n);
-
-    return Number(n) == n && n % 1 === 0;
+    let val = parseInt(n);
+    return !isNaN(val);
   }
 
   function isFloat(n){
-      return Number(n) == n && n % 1 !== 0;
+    let val = parseFloat(n);
+    return !isNaN(val);
   }
 
   function getNetworkName(networkId) {
@@ -352,7 +404,7 @@
       elementAddressError.style.visibility = "visible";
     }
 
-  }  
+  }
 	</script>
   </body>
 </html>
